@@ -23,11 +23,23 @@ class transaction;
 //       wr_en == 1;
     };
 
-  task display(string name);
+  virtual task display(string name);
         $display("[%s] wr_en:%b | addr:%h | wdata:%h error:%b",name,wr_en,addr,wdata,error);
     endtask
 
 endclass
+
+class bad_transaction extends transaction;
+    constraint c1{addr [1:0]!=0;}
+    // display("Bad_tarnsaction");
+// endclass
+
+virtual task display(string name);
+    super.display("Bad_transaction");
+endtask
+
+endclass
+
 
 class generator;
 transaction tr;
@@ -38,15 +50,19 @@ function new(mailbox gen2drive);
 endfunction
 
 task main;
+bad_transaction bad_tr;
     repeat(10)begin
-        tr=new();
+        
+        randcase
+        70:tr=new();
+        30:begin bad_tr =new(); tr=bad_tr; end
+        endcase
         tr.randomize();
         gen2drive.put(tr);
         tr.display("GEN");
     end
 
 endtask
-
 endclass
 
 class driver;
@@ -102,7 +118,8 @@ if(vif.wr_en)begin
     tr.addr = vif.addr;
     tr.wr_en = vif.wr_en;
     @(posedge vif.clk);
-    tr.error = vif.error;
+  #1;
+    tr.error = vif.error; 
     mon2soc.put(tr);
     tr.display("MON");
     end
@@ -129,8 +146,9 @@ function check_result(transaction tr);
         end     
     end else begin
 //       tr.display("SOC");
-      $display("Fail  unaligned address| addr:%h",tr.addr);
-      
+if(tr.error == 1)begin
+      $display("pass  unaligned address| addr:%h",tr.addr);
+end
     end
 
 
